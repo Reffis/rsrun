@@ -1,5 +1,5 @@
-use std::io::stdin;
 use std::io::Write;
+use std::io::{stdin, Read};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 fn main() {
@@ -11,48 +11,73 @@ fn main() {
         eprint!("{} > ", name);
         let mut x = String::new();
         stdin().read_line(&mut x).unwrap();
-
-        match &x.trim().to_lowercase() as &str {
-            ".help" => {
-                println!();
-                print_c!("---Command---", Color::Green);
-                print_c!(".help       Print this help Message", Color::Cyan);
-                print_c!(".exit       Exit the REPL", Color::Cyan);
-                print_c!(
+            match &x.trim().to_lowercase() as &str {
+                ".help" => {
+                    println!();
+                    print_c!("---Command---", Color::Green);
+                    print_c!(".help       Print this help Message", Color::Cyan);
+                    print_c!(".exit       Exit the REPL", Color::Cyan);
+                    print_c!(
                     ".editor     Enter editor mode (cannot be modified)",
                     Color::Cyan
                 );
-                print_c!(".name       Set Name", Color::Cyan);
-                print_c!("---Comment---", Color::Green);
-                print_c!("// exit     Exit editor mode", Color::Cyan);
-                continue;
-            }
-            ".exit" => std::process::exit(0),
-            ".name" => {
-                let mut n = String::new();
-                print_c!("", Color::Cyan);
-                eprint!("Enter Name: ");
-                stdin().read_line(&mut n).unwrap();
-                name = n.trim().parse().unwrap();
-                print_c!("", Color::White);
-            },
-            ".editor" => {
-                let mut code = String::new();
-
-                'editorloop: loop {
-                    let mut editor_read = String::new();
-                    stdin().read_line(&mut editor_read).unwrap();
-                    match &editor_read.trim().to_lowercase() as &str {
-                        "// exit" | "//exit" => break 'editorloop,
-                        _ => code.push_str(&editor_read as &str),
-                    }
+                    print_c!(".name       Set Name", Color::Cyan);
+                    print_c!(
+                    ".run        Run Rust File (without main function)",
+                    Color::Cyan
+                );
+                    print_c!("// exit     Exit editor mode", Color::Cyan);
+                    continue;
                 }
-                run(code.as_str());
+                ".exit" => std::process::exit(0),
+                ".name" => {
+                    let mut n = String::new();
+                    print_c!("", Color::Cyan);
+                    eprint!("Enter Name: ");
+                    stdin().read_line(&mut n).unwrap();
+                    name = n.trim().parse().unwrap();
+                    print_c!("", Color::White);
+                }
+                ".editor" => {
+                    let mut code = String::new();
+
+                    'editorloop: loop {
+                        let mut editor_read = String::new();
+                        stdin().read_line(&mut editor_read).unwrap();
+                        match &editor_read.trim().to_lowercase() as &str {
+                            "// exit" | "//exit" => break 'editorloop,
+                            _ => code.push_str(&editor_read as &str),
+                        }
+                    }
+                    run(code.as_str(), true);
+                }
+                ".run" => {
+                    let mut n = String::new();
+                    print_c!("", Color::Cyan);
+                    eprint!("Enter File Path: ");
+                    stdin().read_line(&mut n).unwrap();
+
+                    let mut file = match std::fs::File::open(n.trim()) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            println!("{}", e);
+                            continue;
+                        }
+                    };
+                    let mut contents = String::new();
+                    match file.read_to_string(&mut contents) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            println!("{}", e);
+                            continue;
+                        }
+                    };
+                    run(&contents as &str, false);
+                }
+                _ => {
+                    println!("Invalid REPL keyword");
+                }
             }
-            _ => {
-                run(x.as_str());
-            }
-        }
     }
 }
 
@@ -80,9 +105,9 @@ fn print_color_e(t: &str, color: Color, tx: (bool, bool, bool)) {
     stdout.reset();
 }
 
-fn run(code: &str) {
+fn run(code: &str, main: bool) {
     print_c!(
-        match rsrun::eval(code) {
+        match rsrun::eval(code, main) {
             Ok(e) => e,
             Err(e) => {
                 print_c!(format!("{}", e).as_str(), Color::Rgb(255, 77, 77));

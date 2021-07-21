@@ -11,6 +11,27 @@ use std::path::Path;
 use std::process::Command;
 use tempdir::TempDir;
 
+const D_FUNC: &str = r#"
+
+#[allow(dead_code)]
+fn ignore<T>(_v: T) {}
+
+
+#[allow(dead_code)]
+fn p<T: std::fmt::Debug>(v: T) {
+    println!("{:?}", v);
+}
+
+
+#[allow(dead_code)]
+fn clear() {
+    for _ in 0..100 {
+        println!();
+    }
+}
+
+"#;
+
 /// Type of errors that can occur when calling `eval`.
 #[derive(Debug)]
 pub enum EvalError {
@@ -99,10 +120,14 @@ impl From<OtherError> for EvalError {
         EvalError::Other(OtherFailure(e))
     }
 }
-pub fn eval(code: &str) -> Result<String, EvalError> {
+pub fn eval(code: &str, with_main: bool) -> Result<String, EvalError> {
     let temp = TempDir::new("").map_err(OtherError::CreateTempDir)?;
     let code_path = temp.path().join("main.rs");
-    write_source_file(&code_path, code).map_err(OtherError::WriteSrcFile)?;
+    if with_main {
+        write_source_file(&code_path, code).map_err(OtherError::WriteSrcFile)?;
+    } else {
+        write_source_file_without_main(&code_path, code).map_err(OtherError::WriteSrcFile)?;
+    }
     let out_path = temp.path().join("main");
     let out = Command::new("rustc")
         .arg("-o")
@@ -134,11 +159,29 @@ fn write_source_file(path: &Path, code: &str) -> io::Result<()> {
         r##"
 fn main() {{
 
-    {{{}}};
+    {};
 
 }}
+
+{}
     "##,
-        code
+        code,
+        D_FUNC
+    )?;
+    f.sync_all()
+}
+
+fn write_source_file_without_main(path: &Path, code: &str) -> io::Result<()> {
+    let mut f = File::create(path)?;
+    write!(
+        &mut f,
+        r##"
+{}
+
+{}
+    "##,
+        code,
+        D_FUNC
     )?;
     f.sync_all()
 }
