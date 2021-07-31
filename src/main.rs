@@ -28,7 +28,7 @@ fn main() {
                 );
                     print_c!("// exit     Exit editor mode", Color::Cyan);
                     continue;
-                }
+                },
                 ".exit" => std::process::exit(0),
                 ".name" => {
                     let mut n = String::new();
